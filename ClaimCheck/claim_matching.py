@@ -4,8 +4,8 @@ from ClaimCheck.search import scrape_url_content
 
 
 def claim_matching(claim, date, top_k=5):
-    API_KEY = "AIzaSyAROcQTeMKMwisn0DUR5Vo1hM2gVkCkRR0"
-    CSE_ID = "0240d1f6cc9204342"
+    API_KEY = "Google API KEY"
+    CSE_ID = "CSE_ID"
 
     # Perform Google search
     search_results = get_search_results_fc(API_KEY, CSE_ID, claim, date=date, top_k=top_k)
