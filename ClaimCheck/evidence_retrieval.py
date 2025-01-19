@@ -36,8 +36,8 @@ def get_evidence(query, date, top_k=5):
     Retrieve the most relevant evidence documents for a list of queries using embeddings and 5-NN search.
     """
     # Define API key and CSE ID
-    API_KEY = "AIzaSyAGENP28MzRDJ4LZdLpLaluuwLNBKHYl0Q"
-    CSE_ID = "52bd9e51448204e94"
+    API_KEY = "SERPER KEY"
+    CSE_ID = "CSE_ID"
 
     search_results, snippets = serper_search(query, top_k=top_k, date=date)
 
