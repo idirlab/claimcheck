@@ -9,7 +9,7 @@ from ClaimCheck.evidence_retrieval import query_transform, get_evidence, qa_on_q
 from ClaimCheck.relevance_check import answer_check, useful_evidence_check
 from ClaimCheck.justification import justification_production
 
-json_path = '/projects/rag-factchecker/AVeriTeC/data/dev.json'
+json_path = 'YOUR AVERITEC JSON FILE LOCATION'
 num_records = 2
 
 df = loader(json_path, num_records)
