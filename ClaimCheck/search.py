@@ -87,7 +87,7 @@ def serper_search(query, top_k, date, **kwargs):
 
     # Headers including the API key
     headers = {
-        'X-API-KEY': 'fb5679ee8058305ab5fc18f88fbc62d0f90ee279',  # Replace with your Serper API key
+        'X-API-KEY': '',  # Replace with your Serper API key
         'Content-Type': 'application/json'
     }
 
