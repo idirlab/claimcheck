@@ -32,6 +32,8 @@ Decision Options
 
 Otherwise, if you cannot determine the veracity, and none of the evidence is not at all related to the claim or there is no evidence, respond with "I cannot reach a conclusion due to insufficient data", without any backticks. List the evidence that is missing.
 
+Claim: {claim}
+
 Record
 {qa_text}
 
@@ -41,12 +43,7 @@ Highly Useful Evidence:
 Your Judgement
 """
 
-    prompt = f"""
-### Input: 
-Claim: {claim}
-{qa_pairs}
 
-"""
 
     response = llama3_1(prompt)
     
