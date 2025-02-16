@@ -39,4 +39,4 @@ To run the fact-checking system from the command line, use the `fact-check.py` s
 ```bash
 python fact-check.py /path/to/json/file.json 5
 
-Replace `/path/to/json/file.json` with the actual path to your  [AVeriTec JSON file](https://fever.ai/dataset/averitec.html) and `5` with the number of records you want to process.
+Replace `/path/to/json/file.json` with the actual path to your [AVeriTeC JSON file](https://fever.ai/dataset/averitec.html) and `5` with the number of records you want to process.
