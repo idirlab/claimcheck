@@ -1,10 +1,10 @@
-from ClaimCheck.llms import llama3_1
+from ClaimCheck.llms import qwen
 from ClaimCheck.search import get_search_results_fc
 from ClaimCheck.search import scrape_url_content
 
 
 def claim_matching(claim, date, top_k=5):
-    API_KEY = "Google API KEY"
+    API_KEY = "GOOGLE_API_KEY"
     CSE_ID = "CSE_ID"
 
     # Perform Google search
@@ -35,13 +35,13 @@ def article_check(reformulated_claim, evidence_list):
         Article: "{evidence_text}"
         If the article cannot fulfill this requirement, respond with "No answer found."
         """
-        response = llama3_1(prompt)
+        response = qwen(prompt)
 
         if "no answer found" not in response.lower():
             print("Useful Article Found.", link)
-            return evidence_text
+            return [evidence_text, link]
 
-    return "No relevant evidence found."
+    return "No relevant evidence found.", link
 
 def summarize_article(reformulation_claim, article_text):
     prompt = f"""
@@ -52,5 +52,5 @@ def summarize_article(reformulation_claim, article_text):
 
     Article: \n"{article_text}"
     """
-    response = llama3_1(prompt)
+    response = qwen(prompt)
     return response
