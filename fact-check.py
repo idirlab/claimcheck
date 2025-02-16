@@ -1,6 +1,7 @@
 import re
 import json
 import pandas as pd
+import argparse
 from ClaimCheck.averitec import loader
 from ClaimCheck.claim_matching import claim_matching, article_check, summarize_article
 from ClaimCheck.reformulate_claim import reformulate_claim
@@ -10,13 +11,6 @@ from ClaimCheck.evidence_retrieval import query_transform, get_evidence, qa_on_q
 from ClaimCheck.relevance_check import answer_check, useful_evidence_check
 from ClaimCheck.NEI_check import check_fact_checkability_llm, generate_additional_questions_llm
 
-# Paths and configurations
-json_path = '' # Your Path to AVeriTeC JSON file
-num_records = 5 # Number of claims to run
-
-# Data loader
-df = loader(json_path, num_records)
-
 def extract_response(output: str):
     """Extract JSON response from the LLM output."""
     try:
@@ -24,7 +18,6 @@ def extract_response(output: str):
     except:
         return {'classification': 'error', 'justification': 'failed to extract response'}
 
-# Function for fact-checking
 def fact_check(claim, date, speaker=None, claim_url=None, reporting_source=None, location_ISO_code=None):
     metadata = {
         'speaker': speaker,
@@ -97,13 +90,30 @@ def fact_check(claim, date, speaker=None, claim_url=None, reporting_source=None,
     print(f"Justification: {justification}")
     return verdict, justification
 
-# Process and generate DataFrame for evaluation
-results = []
-for index, row in df.iterrows():
-    claim = row['Claim']
-    date = row['Claim Date']
-    speaker = row['Speaker']
-    claim_url = row['Original Claim URL']
-    reporting_source = row['Reporting Source']
-    location_ISO_code = row['Location ISO Code']
-    verdict, justification = fact_check(claim, date, speaker, claim_url, reporting_source, location_ISO_code)
+def main():
+    parser = argparse.ArgumentParser(description='Run fact-checking on claims.')
+    parser.add_argument('json_path', type=str, help='Path to AVeriTeC JSON file')
+    parser.add_argument('num_records', type=int, help='Number of claims to run')
+    args = parser.parse_args()
+
+    # Data loader
+    df = loader(args.json_path, args.num_records)
+
+    # Process and generate DataFrame for evaluation
+    results = []
+    for index, row in df.iterrows():
+        claim = row['Claim']
+        date = row['Claim Date']
+        speaker = row['Speaker']
+        claim_url = row['Original Claim URL']
+        reporting_source = row['Reporting Source']
+        location_ISO_code = row['Location ISO Code']
+        verdict, justification = fact_check(claim, date, speaker, claim_url, reporting_source, location_ISO_code)
+        results.append((claim, verdict, justification))
+
+    # Convert results to DataFrame and save or print
+    results_df = pd.DataFrame(results, columns=['Claim', 'Verdict', 'Justification'])
+    print(results_df)
+
+if __name__ == "__main__":
+    main()
