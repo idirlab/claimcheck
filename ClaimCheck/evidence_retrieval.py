@@ -1,49 +1,56 @@
 import re
-from ClaimCheck.llms import llama3_2, llama3_1
+from ClaimCheck.llms import qwen
 from ClaimCheck.search import serper_search, scrape_url_content
 
 def query_transform(question, claim):
+    """
+    Transforms a fact-checking question into an optimized web search query.
+    """
     try:
         prompt = f"""
         # Instructions
-        You are a fact-checker. Your overall motivation is to verify a given Claim. To this end, you asked a Question. Your task right now is to **rewrite the question for web search** that aims to retrieve evidence that answers the Question. Additionally, follow these rules:
-        * The main task is to make the search query make sense in the context of the Question. Add question-specific context if necessary.
-        * You must format your proposed search query question by putting the query string into backticks like `this`.
-        * Be brief, do not justify your proposed actions.
-
+        You are a fact-checker optimizing a question for web search to retrieve relevant evidence.
+        
+        **Guidelines:**
+        - Ensure the query makes sense in the context of the question.
+        - Add claim-specific context only if absolutely necessary to improve relevance.
+        - Keep the query concise and structured for effective search results.
+        - Format the final query using backticks like `this` (without extra formatting or explanation).
+        
         ## Question
         {question}
 
         ## Claim
         {claim}
 
-        ## Query
+        ## Search Query:
         """
-        response = llama3_2(prompt)
-        query = re.search(r'`([^`]+)`', response).group(1)
-        query = query.replace('"', '')
-        if "OR" in query:
-            query = query.split("OR")[0]
+
+        response = qwen(prompt)
+
+        # Extract query from backticks
+        match = re.search(r'`([^`]+)`', response)
+        query = match.group(1) if match else response.strip()
+
+        # Clean query by removing unnecessary elements
+        query = query.replace('"', '').split(" OR ")[0]
 
         return query
+
     except Exception as e:
-        print(f"An error occurred: {e}. Retrying...")
+        print(f"Error: {e}. Retrying...")
         return query_transform(question, claim)
+
 
 
 def get_evidence(query, date, top_k=5):
     """
     Retrieve the most relevant evidence documents for a list of queries using embeddings and 5-NN search.
     """
-    # Define API key and CSE ID
-    API_KEY = "SERPER KEY"
-    CSE_ID = "CSE_ID"
-
     search_results, snippets = serper_search(query, top_k=top_k, date=date)
-
     return search_results, snippets
 
-def qa_on_question(urls, question, claim):
+def qa_on_question(urls, snippets, question, claim):
     """
     Answer a question based on the evidence retrieved.
     """
@@ -51,7 +58,7 @@ def qa_on_question(urls, question, claim):
     useful_evidence = []
 
     answer_found = False
-    for link in urls:
+    for link, snippet in zip(urls, snippets):
         content = scrape_url_content(link)
 
         evidence_text = " ".join(content) if content else ""
@@ -76,12 +83,15 @@ def qa_on_question(urls, question, claim):
             {question}
 
             Search Result
+            Summary: {snippet}
+
+            Evidence: 
             {evidence_text}
 
             Your Answer
             """
 
-        response = llama3_1(prompt)
+        response = qwen(prompt)
         
 
         if "the evidence is useful" in response.lower():
