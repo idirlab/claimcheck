@@ -1,4 +1,4 @@
-from ClaimCheck.llms import llama3_1
+from ClaimCheck.llms import qwen
 
 def answer_check(answers, claim):
     relevant_answers = []
@@ -6,7 +6,7 @@ def answer_check(answers, claim):
         prompt = f"""
         Instructions
         You are a fact-checker. Your overall motivation is to verify a given Claim. You already did part of the fact-check, documented under "Record". In order to find evidence that helps the fact-checking work, you just ran a web search which yielded a Search Result. Your task right now is to determine if the Answer is useful to fact-checking the Claim. Adhere to the following rules:
-        An answer is useful even when it doesn't directly answer the question, if it provides highly relevant information for fact-checking.
+        An answer is useful even when it doesn't directly answer the question, if it provides highly relevant information for fact-checking. It just has to be somewhat related to the Claim.
         If the Answer is useful to fact-checking the Claim, respond only with "Yes".
         If the Answer is not useful to fact-checking the Claim, respond only with "No".
 
@@ -16,8 +16,9 @@ def answer_check(answers, claim):
         Question and Answer: "{answer}"
 
         """
-        response = llama3_1(prompt)
-        print(response)
+        response = qwen(prompt)
+        if "no" in response.lower():
+            print(answer, response)
         if "yes" in response.lower():
             relevant_answers.append(answer)
             print("Relevant answer found.", answer)
@@ -29,8 +30,8 @@ def useful_evidence_check(evidence_list, claim):
         prompt = f"""
         Instructions
         You are a fact-checker. Your overall motivation is to verify a given Claim. You already did part of the fact-check, documented under "Record". In order to find evidence that helps the fact-checking work, you just ran a web search which yielded possibly useful evidence. Your task right now is to determine if the evidence is relevant to fact-checking the Claim. Adhere to the following rules:
-        If the evidence is highly relevant to fact-checking the Claim, respond with a short summary of the evidence, particularly the parts relevant to the claim.
-        If the evidence is not relevant to fact-checking the Claim, respond only with "No".
+        If the evidence is relevant to fact-checking the Claim, respond with a short summary of the evidence, particularly the parts relevant to the claim.
+        If the evidence is not at all relevant to fact-checking the Claim, respond only with "No".
 
         Record
         Claim: "{claim}"
@@ -38,7 +39,7 @@ def useful_evidence_check(evidence_list, claim):
         Evidence: "{evidence}"
 
         """
-        response = llama3_1(prompt)
+        response = qwen(prompt)
         print(response)
         if "no" in response.lower() and len(response) < 20:
             relevant_evidence.append(evidence)
