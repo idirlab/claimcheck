@@ -1,4 +1,4 @@
-from ClaimCheck.llms import llama3_2
+from ClaimCheck.llms import qwen
 
 def reformulate_claim(claim, metadata):
     """
@@ -19,5 +19,5 @@ def reformulate_claim(claim, metadata):
 
     # Interpretation
     """
-    reformulated_claim = llama3_2(prompt)
+    reformulated_claim = qwen(prompt)
     return reformulated_claim
