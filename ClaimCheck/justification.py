@@ -1,4 +1,4 @@
-from ClaimCheck.llms import llama3_1
+from ClaimCheck.llms import qwen
 
 def justification_production(claim, qa_pairs, verdict):
     """
@@ -35,6 +35,6 @@ based on the knowledge from the Record. Note:
 Justification:
 
 """
-    response = llama3_1(prompt)
+    response = qwen(prompt)
 
     return response
