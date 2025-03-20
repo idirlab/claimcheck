@@ -33,7 +33,8 @@ def article_check(reformulated_claim, evidence_list):
 
         Claim: "{reformulated_claim}"
         Article: "{evidence_text}"
-        If the article cannot fulfill this requirement, respond with "No answer found."
+        If the article cannot fulfill this requirement, respond with "No answer found." Otherwise, gather the key evidence from the article that can be used for fact checking the claim and summarize them in at most one paragraph.
+
         """
         response = qwen(prompt)
 
