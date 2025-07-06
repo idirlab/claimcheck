@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automatic Fact Checker</title>
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.4.1/semantic.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        .main-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .fact-check-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .claim-input {
+            margin-bottom: 2rem;
+        }
+        
+        .results-section {
+            margin-top: 2rem;
+        }
+        
+        .web-results {
+            /* width: 30%; */
+            /* float: left; */
+            overflow-x: hidden;
+            padding: 1rem;
+            /* margin-right: 2rem; */
+            box-sizing: border-box;
+        }
+        
+        .evidence-card {
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .evidence-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .evidence-summary {
+            display: none;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .expand-icon {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            color: #888;
+        }
+        
+        .evidence-analysis {
+            /* width: 70%; */
+            /* float: right; */
+            padding: 1rem;
+            box-sizing: border-box;
+        }
+        
+        /* .verdict-section {
+            clear: both;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+        } */
+        
+        .verdict-supported {
+            background: linear-gradient(135deg, #d4edda, #c3e6cb);
+            border-color: #28a745;
+        }
+        
+        .verdict-refuted {
+            background: linear-gradient(135deg, #f8d7da, #f1b0b7);
+            border-color: #dc3545;
+        }
+        
+        .verdict-conflicting {
+            background: linear-gradient(135deg, #fff3cd, #ffeaa7);
+            border-color: #ffc107;
+        }
+        
+        .verdict-insufficient {
+            background: linear-gradient(135deg, #e2e3e5, #d1d3d4);
+            border-color: #6c757d;
+        }
+        
+        .loading-section {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .progress-step {
+            opacity: 0.5;
+            transition: opacity 0.3s ease;
+        }
+        
+        .progress-step.active {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="fact-check-header">
+            <h1 class="ui header">
+                <i class="search icon"></i>
+                <div class="content">
+                    Automatic Fact Checker
+                    <div class="sub header">Verify claims with AI-powered fact-checking</div>
+                </div>
+            </h1>
+        </div>
+
+        <div class="claim-input">
+            <form class="ui form" id="factCheckForm">
+                <div class="field">
+                    <label>Enter your claim to fact-check:</label>
+                    <div class="ui action input">
+                        <input type="text" id="claimInput" placeholder="e.g., Joe Biden voted for the Iraq war" required>
+                        <input type="date" id="cutoffDate" title="Cutoff Date" style="margin-left: 10px;">
+                        <button class="ui primary button" type="submit" id="submitBtn">
+                            <i class="search icon"></i>
+                            Fact Check
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <div class="ui steps" id="progressSteps" style="display: none;">
+            <div class="step progress-step" id="step-search">
+                <i class="search icon"></i>
+                <div class="content">
+                    <div class="title">Web Search</div>
+                    <div class="description">Finding relevant sources</div>
+                </div>
+            </div>
+            <div class="step progress-step" id="step-analysis">
+                <i class="file alternate outline icon"></i>
+                <div class="content">
+                    <div class="title">Evidence Analysis</div>
+                    <div class="description">Analyzing sources</div>
+                </div>
+            </div>
+            <div class="step progress-step" id="step-verdict">
+                <i class="check circle icon"></i>
+                <div class="content">
+                    <div class="title">Verdict</div>
+                    <div class="description">Final assessment</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="loading-section" id="loadingSection" style="display: none;">
+            <div class="ui active inline loader"></div>
+            <p>Processing your claim...</p>
+        </div>
+
+        <div class="results-section" id="resultsSection" style="display: none;">
+    <div class="ui grid">
+        <!-- First row: Verdict (full width) -->
+        <div class="row">
+            <div class="sixteen wide column">
+                <div class="verdict-section" id="verdictSection" style="display: none;">
+                    <h3 class="ui header">
+                        <i class="gavel icon"></i>
+                        Final Verdict
+                    </h3>
+                    <div class="ui large message" id="verdictMessage" style="cursor: pointer;">
+                        <div class="header" id="verdictHeader">Checking...</div>
+                        <div id="verdictJustification" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Second row: Web Results (4 wide) + Evidence Analysis (12 wide) -->
+        <div class="row">
+            <!-- <div class="four wide column">
+                <h3 class="ui header">
+                    <i class="world icon"></i>
+                    Web Search Results
+                </h3>
+                <div class="web-results" id="webResults" style="display: none;"> 
+                    <div class="ui cards" id="webResultsCards"></div>
+                </div>
+            </div> -->
+            <div class="four wide column">
+                <h3 class="ui header">
+                    <i class="world icon"></i>
+                    Web Search Results
+                </h3>
+                <!-- Loader for web search -->
+                <div id="webResultsLoader" class="ui active inline loader" style="margin: 1em 0; display: none;">
+                    <span style="margin-left: 1em;">Searching the web for evidence...</span>
+                </div>
+                <div class="web-results" id="webResults" style="display: none;"> 
+                    <div class="ui cards" id="webResultsCards"></div>
+                </div>
+            </div>
+            <!-- <div class="twelve wide column">
+                <h3 class="ui header">
+                    <i class="file alternate outline icon"></i>
+                    Evidence Analysis
+                </h3>
+                <div class="evidence-analysis" id="evidenceSection" style="display: none;">
+                    <div class="ui segment" id="evidenceContent"></div>
+                </div>
+            </div> -->
+
+            <div class="twelve wide column">
+                <h3 class="ui header">
+                    <i class="file alternate outline icon"></i>
+                    Evidence Analysis
+                </h3>
+                <!-- Evidence analysis loader -->
+                <div id="evidenceLoader" class="ui info message" style="display: none; margin-bottom: 1em;">
+                    <i class="notched circle loading icon"></i>
+                    <span id="evidenceLoaderText">Waiting for evidence collection...</span>
+                </div>
+                <div class="evidence-analysis" id="evidenceSection" style="display: none;">
+                    <div class="ui segment" id="evidenceContent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+
+    <script>
+        let currentClaimId = null;
+        let eventSource = null;
+
+        document.getElementById('cutoffDate').valueAsDate = new Date();
+
+        document.getElementById('factCheckForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const claim = document.getElementById('claimInput').value.trim();
+            const cutoffDate = document.getElementById('cutoffDate').value;
+            
+            if (!claim) return;
+
+            resetUI();
+            showLoading();
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/factcheck', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        claim: claim,
+                        cutoff_date: cutoffDate
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to submit claim');
+                }
+
+                const data = await response.json();
+                currentClaimId = data.claim_id;
+                startStreaming();
+
+            } catch (error) {
+                console.error
+('Error:', error);
+                showError('Failed to submit claim. Please try again.');
+            }
+        });
+
+        function resetUI() {
+            document.getElementById('resultsSection').style.display = 'none';
+            document.getElementById('progressSteps').style.display = 'none';
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('verdictSection').style.display = 'none';
+            document.getElementById('webResults').style.display = 'none';
+            document.getElementById('evidenceSection').style.display = 'none';
+            document.getElementById('verdictHeader').innerHTML = 'Checking...';
+            document.getElementById('verdictJustification').style.display = 'none';
+            // Show web search loader
+            document.getElementById('webResultsLoader').style.display = 'flex';
+            document.getElementById('webResultsCards').innerHTML = '';
+            // Hide evidence loader initially
+            document.getElementById('evidenceLoader').style.display = 'none';
+            document.querySelectorAll('.progress-step').forEach(step => {
+                step.classList.remove('active', 'completed');
+            });
+
+            document.getElementById('progressSteps').scrollIntoView({ behavior: 'smooth' })
+        }
+
+        function showLoading() {
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('progressSteps').style.display = 'flex';
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('verdictSection').style.display = 'block';
+        }
+
+        function startStreaming() {
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            eventSource = new EventSource(`http://127.0.0.1:8000/stream-report/${currentClaimId}`);
+            
+            eventSource.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    
+                    if (data.status === 'connected') {
+                        console.log('Stream connected for claim:', data.claim_id);
+                        return;
+                    }
+                    
+                    if (data.status === 'error') {
+                        showStreamError(data.error);
+                        return;
+                    }
+                    
+                    if (data.status === 'complete' || data.status === 'process_ended') {
+                        console.log('Fact-checking process completed');
+                        updateUI(data);
+                        eventSource.close();
+                        eventSource = null;
+                        return;
+                    }
+                    
+                    updateUI(data);
+                    
+                } catch (error) {
+                    console.error('Error parsing stream data:', error, 'Raw data:', event.data);
+                }
+            };
+
+            eventSource.onerror = function(event) {
+                console.error('Stream connection error:', event);
+                showStreamError('Connection lost while streaming results.');
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+            };
+
+            eventSource.onopen = function(event) {
+                console.log('Stream connection opened successfully');
+            };
+        }
+
+        function updateUI(data) {
+            document.getElementById('resultsSection').style.display = 'block';
+            document.getElementById('loadingSection').style.display = 'none';
+
+            if (data.actions && Object.keys(data.actions).length > 0) {
+                updateWebSearchResults(data.actions);
+                activateStep('step-search');
+            }
+
+            if (data.reasoning && data.reasoning.length > 0) {
+                updateEvidenceAnalysis(data.reasoning);
+                activateStep('step-analysis');
+            }
+
+            if (data.verdict) {
+                updateVerdict(data.verdict.trim(), data.justification ? data.justification.trim() : '');
+                activateStep('step-verdict');
+                if (eventSource) {
+                    eventSource.close();
+                    eventSource = null;
+                }
+            }
+        }
+
+        function updateWebSearchResults(actions) {
+            const webResultsSection = document.getElementById('webResults');
+            const webResultsCards = document.getElementById('webResultsCards');
+            const webResultsLoader = document.getElementById('webResultsLoader');
+            const evidenceLoader = document.getElementById('evidenceLoader');
+            const evidenceLoaderText = document.getElementById('evidenceLoaderText');
+
+            webResultsSection.style.display = 'block';
+            webResultsLoader.style.display = 'none'; // Hide loader when results arrive
+            webResultsCards.innerHTML = '';
+
+            // Count total and summarized articles
+            let total = 0;
+            let withSummary = 0;
+
+            Object.entries(actions).forEach(([actionKey, actionData]) => {
+                if (actionData.action === 'web_search' && actionData.results) {
+                    Object.entries(actionData.results).forEach(([url, result]) => {
+                        total += 1;
+                        if (result.summary && result.summary.trim().length > 0) {
+                            withSummary += 1;
+                        }
+                        const card = createWebResultCard(url, result);
+                        webResultsCards.appendChild(card);
+                    });
+                }
+            });
+
+            // Show/hide evidence loader
+            if (total > 0 && withSummary < total) {
+                evidenceLoader.style.display = 'block';
+                evidenceLoaderText.textContent = `Waiting for evidence collection (${withSummary}/${total})`;
+            } else {
+                evidenceLoader.style.display = 'none';
+            }
+        }
+
+        function createWebResultCard(url, result) {
+            const card = document.createElement('div');
+            card.className = 'card evidence-card';
+            card.innerHTML = `
+                <div class="content">
+                    <div class="header">
+                        <a href="${url}" target="_blank" class="ui blue">
+                            <i class="external alternate icon"></i>
+                            ${new URL(url).hostname}
+                        </a>
+                    </div>
+                    <div class="description">
+                        ${result.snippet ? result.snippet.trim() : 'No snippet available'}
+                    </div>
+                    ${result.summary ? `
+                        <div class="evidence-summary">
+                            <div class="ui small header">Evidence Summary:</div>
+                            <div class="content">${marked.parse(result.summary.trim())}</div>
+                        </div>
+                        <i class="expand-icon angle down icon"></i>
+                    ` : ''}
+                </div>
+            `;
+
+            card.addEventListener('click', function() {
+                const summary = card.querySelector('.evidence-summary');
+                const icon = card.querySelector('.expand-icon');
+                if (summary) {
+                    if (summary.style.display === 'none' || !summary.style.display) {
+                        summary.style.display = 'block';
+                        icon.classList.remove('angle down');
+                        icon.classList.add('angle up');
+                    } else {
+                        summary.style.display = 'none';
+                        icon.classList.remove('angle up');
+                        icon.classList.add('angle down');
+                    }
+                }
+            });
+
+            return card;
+        }
+
+        function updateEvidenceAnalysis(reasoning) {
+            const evidenceSection = document.getElementById('evidenceSection');
+            const evidenceContent = document.getElementById('evidenceContent');
+            const evidenceLoader = document.getElementById('evidenceLoader');
+            
+            evidenceSection.style.display = 'block';
+            evidenceLoader.style.display = 'none'; // Hide loader when analysis is ready
+            
+            const reasoningText = Array.isArray(reasoning) ? reasoning.join('\n\n') : reasoning;
+            evidenceContent.innerHTML = marked.parse(reasoningText.trim());
+        }
+
+        function updateVerdict(verdict, justification) {
+            const verdictSection = document.getElementById('verdictSection');
+            const verdictMessage = document.getElementById('verdictMessage');
+            const verdictHeader = document.getElementById('verdictHeader');
+            const verdictJustification = document.getElementById('verdictJustification');
+            
+            verdictSection.style.display = 'block';
+            
+            verdictHeader.innerHTML = verdict;
+            verdictJustification.innerHTML = justification ? marked.parse(justification) : '';
+            
+            verdictMessage.classList.remove('verdict-supported', 'verdict-refuted', 'verdict-conflicting', 'verdict-insufficient');
+            
+            switch (verdict.toLowerCase()) {
+                case 'supported':
+                    verdictMessage.classList.add('verdict-supported');
+                    verdictHeader.innerHTML = '<i class="check circle green icon"></i>Supported';
+                    break;
+                case 'refuted':
+                    verdictMessage.classList.add('verdict-refuted');
+                    verdictHeader.innerHTML = '<i class="times circle red icon"></i>Refuted';
+                    break;
+                case 'conflicting evidence/cherrypicking':
+                    verdictMessage.classList.add('verdict-conflicting');
+                    verdictHeader.innerHTML = '<i class="exclamation triangle yellow icon"></i>Conflicting Evidence';
+                    break;
+                case 'not enough evidence':
+                    verdictMessage.classList.add('verdict-insufficient');
+                    verdictHeader.innerHTML = '<i class="question circle grey icon"></i>Not Enough Evidence';
+                    break;
+            }
+            
+            verdictMessage.addEventListener('click', function() {
+                if (verdictJustification.style.display === 'none' || !verdictJustification.style.display) {
+                    verdictJustification.style.display = 'block';
+                } else {
+                    verdictJustification.style.display = 'none';
+                }
+            });
+        }
+
+        function activateStep(stepId) {
+            document.getElementById(stepId).classList.add('active');
+        }
+
+        function showError(message) {
+            document.getElementById('loadingSection').innerHTML = `
+                <div class="ui negative message">
+                    <div class="header">Error</div>
+                    <p>${message}</p>
+                    <button class="ui button" onclick="location.reload()">Try Again</button>
+                </div>
+            `;
+        }
+
+        function showStreamError(message) {
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'ui warning message';
+            errorDiv.innerHTML = `
+                <div class="header">Stream Connection Issue</div>
+                <p>${message}</p>
+                <p>The fact-checking process may still be running. You can refresh the page to check for results.</p>
+            `;
+            document.getElementById('resultsSection').appendChild(errorDiv);
+        }
+
+        window.addEventListener('beforeunload', function() {
+            if (eventSource) {
+                eventSource.close();
+            }
+        });
+    </script>
+</body>
+</html>
