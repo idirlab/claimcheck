@@ -1,7 +1,6 @@
 import os
 from datetime import datetime
 
-# Global report path (set during init_report)
 REPORT_PATH = None
 EVIDENCE_PATH = None
 
