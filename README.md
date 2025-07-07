@@ -15,7 +15,7 @@ ClaimCheck is a fact-checking system that processes claims and verifies their ve
 ## Installation
 1. Clone the repository:
     ```bash
-    git clone https://github.com/akshithputta/ClaimCheck.git
+    git clone https://github.com/idirlab/ClaimCheck.git
     cd ClaimCheck
     ```
 

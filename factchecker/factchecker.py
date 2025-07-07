@@ -2,8 +2,8 @@ import re
 import os
 import json
 import concurrent.futures
-from modules import plan, summarize, develop, judge, justify
-from tools import web_search, image_search, reverse_image_search, geolocation, web_scraper, web_scraper_bs4
+from modules import planning, evidence_summarization, evidence_synthesis, evaluation
+from tools import web_search, web_scraper
 from report import report_writer
 import fcntl
 
@@ -101,8 +101,8 @@ class FactChecker:
                     self.save_report_json()
 
                     def process_result(result):
-                        scraped_content = web_scraper_bs4.scrape_url_content(result)
-                        summary = summarize.summarize(self.claim, scraped_content, result, record=self.get_report())
+                        scraped_content = web_scraper.scrape_url_content(result)
+                        summary = evidence_summarization.summarize(self.claim, scraped_content, result, record=self.get_report())
 
                         if "NONE" in summary:
                             print(f"Skipping summary for evidence: {result}")
@@ -129,7 +129,7 @@ class FactChecker:
         else:
             actions = ["web_search"]#, "image_search"]
 
-        actions = plan.plan(self.claim, record=self.get_report(), actions=actions)
+        actions = planning.plan(self.claim, record=self.get_report(), actions=actions)
         report_writer.append_iteration_actions(1, actions)
         print(f"Proposed actions for claim '{self.claim}':\n{actions}")
 
@@ -160,7 +160,7 @@ class FactChecker:
         iterations = 0
         seen_action_lines = set(action_lines)
         while iterations <= 2:
-            reasoning = develop.develop(record=self.get_report())
+            reasoning = evidence_synthesis.develop(record=self.get_report())
 
             print(f"Developed reasoning:\n{reasoning}")
             report_writer.append_reasoning(reasoning)
@@ -192,7 +192,7 @@ class FactChecker:
         pred_verdict = ''
         rules = RULES_PROMPT
         while judge_tries < max_judge_tries:
-            verdict = judge.judge(
+            verdict = evaluation.judge(
                 record=self.get_report(),
                 decision_options="Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence",
                 rules=rules,
@@ -223,7 +223,7 @@ class FactChecker:
                 # If no options found, use extract_verdict from judge.py
                 print("No decision options found in verdict, using extract_verdict from judge.py...")
                 try:
-                    extracted = judge.extract_verdict(verdict, "Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence", rules)
+                    extracted = evaluation.extract_verdict(verdict, "Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence", rules)
                     extracted_verdict = re.search(r'`(.*?)`', extracted, re.DOTALL)
                     pred_verdict = extracted_verdict.group(1).strip() if extracted_verdict else extracted.strip()
                     print(f"extract_verdict returned: {pred_verdict}")
@@ -235,18 +235,6 @@ class FactChecker:
         report_writer.append_verdict(verdict)
         self.report["judged_verdict"] = verdict
         self.report["verdict"] = pred_verdict
-        self.save_report_json()
-
-        # Justification
-        justification = justify.justify(
-            record=self.get_report(),
-            think=None  # Replace with think_justify if defined
-        )
-        print(f"Justification:\n{justification}")
-        report_writer.append_justification(justification)
-        self.report["justification"] = justification
-
-        # Save the complete report as JSON
         self.save_report_json()
 
         return pred_verdict, report_writer.REPORT_PATH
