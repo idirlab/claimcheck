@@ -2,6 +2,7 @@ import sys
 # Ensure the parent directory is in the path for imports
 sys.path.append("../factchecker")
 
+import os
 import asyncio
 import multiprocessing
 from datetime import datetime, timedelta
@@ -119,6 +120,10 @@ async def start_factcheck(request: FactCheckRequest, background_tasks: Backgroun
             # If no format matched, raise an error
             print(f"Invalid cutoff date format: {cutoff_date}")
             raise HTTPException(status_code=400, detail="Cutoff date must be in DD-MM-YYYY format")
+
+    # Ensure the claim ID directory exists
+    claim_dir = OUTPUT_DIR / claim_id
+    os.makedirs(claim_dir, exist_ok=True)
 
     # Start the fact-checking process
     process = multiprocessing.Process(
