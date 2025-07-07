@@ -1,6 +1,6 @@
 import sys
 # Ensure the parent directory is in the path for imports
-sys.path.append("../factchecker") 
+sys.path.append("../factchecker")
 
 import asyncio
 import multiprocessing
