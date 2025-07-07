@@ -2,10 +2,30 @@ import re
 import os
 import json
 import concurrent.futures
-from modules import planning, evidence_summarization, evidence_synthesis, evaluation
-from tools import web_search, web_scraper
+from modules import plan, summarize, develop, judge, justify
+from tools import web_search, image_search, reverse_image_search, geolocation, web_scraper, web_scraper_bs4
 from report import report_writer
 import fcntl
+
+RULES_PROMPT = """
+Supported
+- The claim is directly and clearly backed by strong, credible evidence. Minor uncertainty or lack of detail does not disqualify a claim from being Supported if the main point is well-evidenced.
+- Use Supported if the overall weight of evidence points to the claim being true, even if there are minor caveats or not every detail is confirmed.
+
+Refuted
+- The claim is contradicted by strong, credible evidence, or is shown to be fabricated, deceptive, or false in its main point.
+- Use Refuted if the central elements of the claim are disproven, even if some minor details are unclear.
+- Lack of any credible sources supporting the claim does not mean "Not Enough Evidence" - it means the claim is Refuted.
+
+Conflicting Evidence/Cherrypicking
+- Only use this if there are reputable sources that directly and irreconcilably contradict each other about the main point of the claim, and no clear resolution is possible after careful analysis.
+- Do NOT use this for minor disagreements, incomplete evidence, or if most evidence points one way but a few sources disagree.
+
+Not Enough Evidence
+- Only use this if there is genuinely no relevant evidence available after a thorough search, or if the claim is too vague or ambiguous to evaluate.
+- Do NOT use this if there is some evidence, even if it is weak, or if the claim is mostly clear but not every detail is confirmed.
+- This is a last-resort option only.
+"""
 
 class FactChecker:
     def __init__(self, claim, date, identifier=None, multimodal=False, image_path=None, max_actions=2):
@@ -81,8 +101,8 @@ class FactChecker:
                     self.save_report_json()
 
                     def process_result(result):
-                        scraped_content = web_scraper.scrape_url_content(result)
-                        summary = evidence_summarization.summarize(self.claim, scraped_content, result, record=self.get_report())
+                        scraped_content = web_scraper_bs4.scrape_url_content(result)
+                        summary = summarize.summarize(self.claim, scraped_content, result, record=self.get_report())
 
                         if "NONE" in summary:
                             print(f"Skipping summary for evidence: {result}")
@@ -109,15 +129,15 @@ class FactChecker:
         else:
             actions = ["web_search"]#, "image_search"]
 
-        actions = planning.plan(self.claim, record=self.get_report(), actions=actions)
+        actions = plan.plan(self.claim, record=self.get_report(), actions=actions)
         report_writer.append_iteration_actions(1, actions)
         print(f"Proposed actions for claim '{self.claim}':\n{actions}")
 
-        action_lines = re.findall(r'\s*(.+)', actions)
+        action_lines = [x.strip() for x in actions.split('\n')]
         print(f"Extracted action lines: {action_lines}")
 
         # Filter out invalid or empty action lines using regex
-        action_lines = [line for line in action_lines if re.match(r'(\w+)_search\("([^"]+)"\)', line)]
+        action_lines = [line for line in action_lines if re.match(r'(\w+)_search\("([^"]+)"\)', line, re.IGNORECASE)]
         print(f"Filtered valid action lines: {action_lines}")
         print(f"Total action lines: {len(action_lines)}")
         print(f"Max actions allowed: {self.max_actions}")
@@ -139,17 +159,20 @@ class FactChecker:
 
         iterations = 0
         seen_action_lines = set(action_lines)
-        while iterations < 1:
-            reasoning = evidence_synthesis.develop(record=self.get_report())
+        while iterations <= 2:
+            reasoning = develop.develop(record=self.get_report())
 
             print(f"Developed reasoning:\n{reasoning}")
             report_writer.append_reasoning(reasoning)
 
             self.report["reasoning"].append(reasoning)
             self.save_report_json()
-            reasoning_action_lines = re.findall(r'\s*(.+)', reasoning)
+            reasoning_action_lines = [x.strip() for x in reasoning.split('\n')]
+            reasoning_action_lines = [line for line in reasoning_action_lines if re.match(r'(web_search\("([^"]+)"\)|NONE)', line, re.IGNORECASE)]
 
-            if not reasoning_action_lines:
+            print(f"Extracted reasoning action lines: {reasoning_action_lines}")
+
+            if not reasoning_action_lines or (len(reasoning_action_lines) == 1 and reasoning_action_lines[0].strip().lower() == 'none'):
                 break
 
             if any(line in seen_action_lines for line in reasoning_action_lines):
@@ -167,27 +190,9 @@ class FactChecker:
         max_judge_tries = 3
         judge_tries = 0
         pred_verdict = ''
-        rules = """
-Supported
-- The claim is directly and clearly backed by strong, credible evidence. Minor uncertainty or lack of detail does not disqualify a claim from being Supported if the main point is well-evidenced.
-- Use Supported if the overall weight of evidence points to the claim being true, even if there are minor caveats or not every detail is confirmed.
-
-Refuted
-- The claim is contradicted by strong, credible evidence, or is shown to be fabricated, deceptive, or false in its main point.
-- Use Refuted if the central elements of the claim are disproven, even if some minor details are unclear.
-- Lack of any credible sources supporting the claim does not mean "Not Enough Evidence" - it means the claim is Refuted.
-
-Conflicting Evidence/Cherrypicking
-- Only use this if there are reputable sources that directly and irreconcilably contradict each other about the main point of the claim, and no clear resolution is possible after careful analysis.
-- Do NOT use this for minor disagreements, incomplete evidence, or if most evidence points one way but a few sources disagree.
-
-Not Enough Evidence
-- Only use this if there is genuinely no relevant evidence available after a thorough search, or if the claim is too vague or ambiguous to evaluate.
-- Do NOT use this if there is some evidence, even if it is weak, or if the claim is mostly clear but not every detail is confirmed.
-- This is a last-resort option only.
-"""
+        rules = RULES_PROMPT
         while judge_tries < max_judge_tries:
-            verdict = evaluation.judge(
+            verdict = judge.judge(
                 record=self.get_report(),
                 decision_options="Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence",
                 rules=rules,
@@ -218,7 +223,7 @@ Not Enough Evidence
                 # If no options found, use extract_verdict from judge.py
                 print("No decision options found in verdict, using extract_verdict from judge.py...")
                 try:
-                    extracted = evaluation.extract_verdict(verdict, "Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence", rules)
+                    extracted = judge.extract_verdict(verdict, "Supported|Refuted|Conflicting Evidence/Cherrypicking|Not Enough Evidence", rules)
                     extracted_verdict = re.search(r'`(.*?)`', extracted, re.DOTALL)
                     pred_verdict = extracted_verdict.group(1).strip() if extracted_verdict else extracted.strip()
                     print(f"extract_verdict returned: {pred_verdict}")
@@ -230,6 +235,18 @@ Not Enough Evidence
         report_writer.append_verdict(verdict)
         self.report["judged_verdict"] = verdict
         self.report["verdict"] = pred_verdict
+        self.save_report_json()
+
+        # Justification
+        justification = justify.justify(
+            record=self.get_report(),
+            think=None  # Replace with think_justify if defined
+        )
+        print(f"Justification:\n{justification}")
+        report_writer.append_justification(justification)
+        self.report["justification"] = justification
+
+        # Save the complete report as JSON
         self.save_report_json()
 
         return pred_verdict, report_writer.REPORT_PATH
